@@ -1,53 +1,91 @@
-package com.faraz.assessment
+package com.example.androidopencv
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.faraz.assessment.ui.theme.AndroidEdgeAppTheme
+import android.view.SurfaceView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import org.opencv.android.BaseLoaderCallback
+import org.opencv.android.CameraBridgeViewBase
+import org.opencv.android.LoaderCallbackInterface
+import org.opencv.android.OpenCVLoader
+import org.opencv.core.Mat
 
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            AndroidEdgeAppTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+class MainActivity : AppCompatActivity(), CameraBridgeViewBase.CvCameraViewListener2 {
+
+    private lateinit var cameraView: CameraBridgeViewBase
+
+    companion object {
+        init {
+            System.loadLibrary("opencv_java4") // load OpenCV native libs
+            System.loadLibrary("native-lib")   // your custom JNI lib
+        }
+    }
+
+    // Callback when OpenCV successfully loads
+    private val loaderCallback = object : BaseLoaderCallback(this) {
+        override fun onManagerConnected(status: Int) {
+            when (status) {
+                LoaderCallbackInterface.SUCCESS -> {
+                    cameraView.enableView()
+                }
+                else -> {
+                    super.onManagerConnected(status)
                 }
             }
         }
     }
 
-    companion object {
-        init {
-            System.loadLibrary("native-lib")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        // Camera view setup
+        cameraView = findViewById(R.id.camera_view)
+        cameraView.visibility = SurfaceView.VISIBLE
+        cameraView.setCvCameraViewListener(this)
+
+        // Request camera permission
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 1)
         }
     }
-}
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    AndroidEdgeAppTheme {
-        Greeting("Android")
+    override fun onResume() {
+        super.onResume()
+        if (!OpenCVLoader.initDebug()) {
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION, this, loaderCallback)
+        } else {
+            loaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS)
+        }
     }
+
+    override fun onPause() {
+        super.onPause()
+        if (::cameraView.isInitialized) cameraView.disableView()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::cameraView.isInitialized) cameraView.disableView()
+    }
+
+    // Camera frame callbacks
+    override fun onCameraViewStarted(width: Int, height: Int) {}
+
+    override fun onCameraViewStopped() {}
+
+    override fun onCameraFrame(inputFrame: CameraBridgeViewBase.CvCameraViewFrame?): Mat {
+        val mat = inputFrame?.rgba()
+        // Apply native C++ processing (Canny edge detection, etc.)
+        return processFrameJNI(mat!!)
+    }
+
+    // JNI method for image processing
+    private external fun processFrameJNI(frame: Mat): Mat
 }

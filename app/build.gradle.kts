@@ -17,23 +17,23 @@ android {
         // NDK + CMake configuration
         externalNativeBuild {
             cmake {
-                cppFlags("-std=c++17", "-O3")
+                cppFlags += listOf("-std=c++17", "-O3")
             }
         }
 
-        // Which ABIs to build for
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a")
         }
     }
 
     buildFeatures {
-        prefab = true  // required for OpenCV native
+        prefab = true
+        viewBinding = true
     }
 
-    // Link CMakeLists.txt path
     externalNativeBuild {
         cmake {
+            // Your C++ code path
             path = file("src/main/cpp/CMakeLists.txt")
         }
     }
@@ -49,6 +49,16 @@ android {
 }
 
 dependencies {
+    // OpenCV Java .jar
+    implementation(
+        fileTree(
+            mapOf(
+                "dir" to "${project.rootDir}/OpenCV-android-sdk/sdk/java",
+                "include" to listOf("*.jar")
+            )
+        )
+    )
+
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.10.0")
